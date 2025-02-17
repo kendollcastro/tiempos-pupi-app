@@ -4,7 +4,7 @@ import {
   Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Input, Button, Container,
   Text, Flex, VStack, HStack, IconButton
 } from '@chakra-ui/react';
-import { ChevronLeftIcon } from '@chakra-ui/icons';
+import { ChevronLeftIcon, DeleteIcon } from '@chakra-ui/icons';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -12,21 +12,25 @@ const GreivinPage = () => {
   const { weekId } = useParams();
   const navigate = useNavigate();
 
-  // Estados de ventas y gastos
+  // Estados de ventas, premios y movimientos
   const [data, setData] = useState({
     lunes: {}, martes: {}, miercoles: {}, jueves: {}, viernes: {}, sabado: {}, domingo: {}
   });
   const [additionalAmount, setAdditionalAmount] = useState(""); // Gasto o retiro
   const [movements, setMovements] = useState([]); // Historial de movimientos
 
-  // Franjas horarias y días
-  const timeSlots = ["10:00 a. m.", "11:00 a. m.", "1:00 p. m.", "3:00 p. m.", "4:30 p. m.", "6:00 p. m.", "7:00 p. m.", "9:00 p. m."];
+  // 🔥 Franjas horarias y días
+  const timeSlots = [
+    "10:00 a. m.", "11:00 a. m.", "1:00 p. m.", "3:00 p. m.",
+    "4:30 p. m.", "6:00 p. m. (Primera)", "6:00 p. m. (Nica)", 
+    "7:00 p. m.", "9:00 p. m."
+  ];
   const days = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
 
   // 🔥 Cargar datos desde Firestore
   useEffect(() => {
     const fetchData = async () => {
-      const docRef = doc(db, `weeks/${weekId}/data`, "greivin");
+      const docRef = doc(db, `weeks/${weekId}/data`, "Greivin");
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
@@ -47,10 +51,10 @@ const GreivinPage = () => {
     newData[day][time][type] = Number(value) || 0;
 
     setData(newData);
-    await setDoc(doc(db, `weeks/${weekId}/data`, "greivin"), newData, { merge: true });
+    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), newData, { merge: true });
   };
 
-  // 🔥 Función para agregar un gasto/retiro
+  // 🔥 Agregar gasto/retiro y guardar en Firestore
   const handleAdditionalAmount = async () => {
     if (!additionalAmount || isNaN(additionalAmount)) return;
 
@@ -65,8 +69,15 @@ const GreivinPage = () => {
     setMovements(updatedMovements);
     setAdditionalAmount("");
 
-    // Guardar en Firestore
-    await setDoc(doc(db, `weeks/${weekId}/data`, "greivin"), { movements: updatedMovements }, { merge: true });
+    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { movements: updatedMovements }, { merge: true });
+  };
+
+  // 🔥 Eliminar un gasto/retiro del historial y Firestore
+  const handleDeleteMovement = async (id) => {
+    const updatedMovements = movements.filter(movement => movement.id !== id);
+    setMovements(updatedMovements);
+
+    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { movements: updatedMovements }, { merge: true });
   };
 
   // 🔥 Cálculo de totales
@@ -81,16 +92,14 @@ const GreivinPage = () => {
     return (calculateTotal("venta") * 0.07).toFixed(2);
   };
 
-  // 🔥 La ganancia es igual a la comisión
+  // 🔥 La ganancia correcta: Ventas - (Premios + Comisión + Gastos)
   const calculateProfit = () => {
-    return calculateCommission();
-  };
-
-  // 🔥 La ganancia final resta los gastos
-  const calculateFinalProfit = () => {
-    const profit = parseFloat(calculateProfit());
+    const premios = calculateTotal("premio");
+    const ventas = calculateTotal("venta");
+    const comision = parseFloat(calculateCommission());
     const totalMovements = movements.reduce((total, movement) => total + movement.amount, 0);
-    return (profit - totalMovements).toFixed(2);
+
+    return (ventas - (premios + comision + totalMovements)).toFixed(2);
   };
 
   return (
@@ -100,13 +109,13 @@ const GreivinPage = () => {
       </Button>
       <Heading size="lg" mb={4}>Greivin - Semana {weekId}</Heading>
 
-      {/* 🔥 Tabla de Ventas */}
+      {/* 🔥 Tabla de Ventas y Premios */}
       <Box overflowX="auto">
         <Table variant="simple" size="sm">
           <Thead>
             <Tr>
-              <Th w="400px">Hora</Th> {/* Más ancha para mejor visibilidad */}
-              {days.map(day => <Th key={day} w="400px">{day.charAt(0).toUpperCase() + day.slice(1)}</Th>)}
+              <Th w="150px">Hora</Th>
+              {days.map(day => <Th key={day} w="170px">{day.charAt(0).toUpperCase() + day.slice(1)}</Th>)}
             </Tr>
           </Thead>
           <Tbody>
@@ -125,6 +134,16 @@ const GreivinPage = () => {
                         w="100px"
                       />
                     </Box>
+                    <Box mt={1}>
+                      <Text fontSize="sm">Premio:</Text>
+                      <Input
+                        type="number"
+                        size="sm"
+                        value={data[day]?.[time]?.premio || ''}
+                        onChange={(e) => handleInputChange(day, time, 'premio', e.target.value)}
+                        w="100px"
+                      />
+                    </Box>
                   </Td>
                 ))}
               </Tr>
@@ -135,11 +154,14 @@ const GreivinPage = () => {
 
       {/* 🔥 Cálculos de Totales */}
       <Box mt={4} p={4} bg="gray.50" borderRadius="md">
-        <Heading size="md" mb={2}>Totales</Heading>
         <Flex gap={4}>
           <Box>
             <Text fontWeight="bold">Total Ventas:</Text>
             <Text>¢{calculateTotal("venta")}</Text>
+          </Box>
+          <Box>
+            <Text fontWeight="bold">Total Premios:</Text>
+            <Text>¢{calculateTotal("premio")}</Text>
           </Box>
           <Box>
             <Text fontWeight="bold">Comisión (7% de ventas):</Text>
@@ -147,32 +169,29 @@ const GreivinPage = () => {
           </Box>
         </Flex>
 
-        {/* 🔥 Ganancia (Igual a la comisión) */}
+        {/* 🔥 Ganancia */}
         <Box mt={4}>
-          <Text fontWeight="bold" fontSize="lg" color="green.500">Ganancia: ¢{calculateProfit()}</Text>
+          <Text fontWeight="bold" fontSize="lg" color={calculateProfit() < 0 ? "red.500" : "green.500"}>
+            Ganancia: ¢{calculateProfit()}
+          </Text>
         </Box>
 
-        {/* 🔥 Monto Adicional (Gasto o Retiro) */}
+        {/* 🔥 Sección de Gasto / Retiro con Historial */}
         <Box mt={4}>
           <Text fontWeight="bold">Agregar Gasto/Retiro:</Text>
           <HStack>
-            <Input
-              type="number"
-              placeholder="Monto"
-              value={additionalAmount}
-              onChange={(e) => setAdditionalAmount(e.target.value)}
-              width="150px"
-            />
-            <Button colorScheme="blue" onClick={handleAdditionalAmount}>
-              Agregar
-            </Button>
+            <Input type="number" placeholder="Monto" value={additionalAmount} onChange={(e) => setAdditionalAmount(e.target.value)} width="150px" />
+            <Button colorScheme="blue" onClick={handleAdditionalAmount}>Agregar</Button>
           </HStack>
-        </Box>
 
-        {/* 🔥 Ganancia Final */}
-        <Box mt={4}>
-          <Text fontWeight="bold">Ganancia Final (después de gastos):</Text>
-          <Text>¢{calculateFinalProfit()}</Text>
+          <VStack align="start" spacing={2} mt={4}>
+            {movements.map(movement => (
+              <HStack key={movement.id} p={2} borderRadius="md" width="100%" bg="gray.100">
+                <Text fontSize="sm">📅 {movement.date} - ¢{movement.amount.toFixed(2)}</Text>
+                <IconButton icon={<DeleteIcon />} colorScheme="red" size="sm" onClick={() => handleDeleteMovement(movement.id)} />
+              </HStack>
+            ))}
+          </VStack>
         </Box>
       </Box>
     </Container>
