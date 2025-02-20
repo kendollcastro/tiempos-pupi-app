@@ -92,14 +92,13 @@ const GreivinPage = () => {
     return (calculateTotal("venta") * 0.07).toFixed(2);
   };
 
-  // 🔥 La ganancia correcta: Ventas - (Premios + Comisión + Gastos)
   const calculateProfit = () => {
     const premios = calculateTotal("premio");
     const ventas = calculateTotal("venta");
     const comision = parseFloat(calculateCommission());
     const totalMovements = movements.reduce((total, movement) => total + movement.amount, 0);
-
-    return (ventas - (premios + comision + totalMovements)).toFixed(2);
+  
+    return (ventas - (premios + comision) + totalMovements).toFixed(2); // 🔥 Se SUMA totalMovements en vez de restarlo
   };
 
   return (
@@ -110,47 +109,67 @@ const GreivinPage = () => {
       <Heading size="lg" mb={4}>Greivin - Semana {weekId}</Heading>
 
       {/* 🔥 Tabla de Ventas y Premios */}
-      <Box overflowX="auto">
-        <Table variant="simple" size="sm">
-          <Thead>
+        <Box overflowX="auto">
+            <Table variant="simple" size="sm">
+            <Thead>
             <Tr>
-              <Th w="150px">Hora</Th>
-              {days.map(day => <Th key={day} w="170px">{day.charAt(0).toUpperCase() + day.slice(1)}</Th>)}
-            </Tr>
-          </Thead>
-          <Tbody>
-            {timeSlots.map(time => (
-              <Tr key={time}>
-                <Td>{time}</Td>
+                <Th 
+                w="250px" 
+                position="sticky" 
+                left={0} 
+                background="white" 
+                zIndex={1} 
+                >
+                Hora
+                </Th>
                 {days.map(day => (
-                  <Td key={day}>
+                <Th key={day} w="250px">{day.charAt(0).toUpperCase() + day.slice(1)}</Th>
+                ))}
+            </Tr>
+            </Thead>
+            <Tbody>
+            {timeSlots.map(time => (
+                <Tr key={time}>
+                <Td 
+                    position="sticky" 
+                    left={0} 
+                    background="white" 
+                    fontWeight="bold" 
+                    w="240px"
+                    p="1" 
+                    zIndex={1}
+                >
+                    {time}
+                </Td>
+                {days.map(day => (
+                    <Td key={day}>
                     <Box>
-                      <Text fontSize="sm">Venta:</Text>
-                      <Input
+                        <Text fontSize="sm">Venta:</Text>
+                        <Input
                         type="number"
                         size="sm"
                         value={data[day]?.[time]?.venta || ''}
                         onChange={(e) => handleInputChange(day, time, 'venta', e.target.value)}
                         w="100px"
-                      />
+                        />
                     </Box>
                     <Box mt={1}>
-                      <Text fontSize="sm">Premio:</Text>
-                      <Input
+                        <Text fontSize="sm">Premio:</Text>
+                        <Input
                         type="number"
                         size="sm"
                         value={data[day]?.[time]?.premio || ''}
                         onChange={(e) => handleInputChange(day, time, 'premio', e.target.value)}
                         w="100px"
-                      />
+                        />
                     </Box>
-                  </Td>
+                    </Td>
                 ))}
-              </Tr>
+                </Tr>
             ))}
-          </Tbody>
-        </Table>
-      </Box>
+            </Tbody>
+            </Table>
+        </Box>
 
       {/* 🔥 Cálculos de Totales */}
       <Box mt={4} p={4} bg="gray.50" borderRadius="md">
@@ -178,7 +197,7 @@ const GreivinPage = () => {
 
         {/* 🔥 Sección de Gasto / Retiro con Historial */}
         <Box mt={4}>
-          <Text fontWeight="bold">Agregar Gasto/Retiro:</Text>
+          <Text fontWeight="bold">Agregar adelanto:</Text>
           <HStack>
             <Input type="number" placeholder="Monto" value={additionalAmount} onChange={(e) => setAdditionalAmount(e.target.value)} width="150px" />
             <Button colorScheme="blue" onClick={handleAdditionalAmount}>Agregar</Button>
