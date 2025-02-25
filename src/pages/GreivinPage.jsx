@@ -80,14 +80,23 @@ const GreivinPage = () => {
     await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { movements: updatedMovements }, { merge: true });
   };
 
-  // 🔥 Cálculo de totales
-  const calculateTotal = (type) => {
-    return days.reduce((total, day) => {
-      return total + timeSlots.reduce((sum, time) => sum + (data[day]?.[time]?.[type] || 0), 0);
-    }, 0);
+  // 🔥 Cálculo de totales por día
+  const calculateDailyTotals = (day, type) => {
+    return timeSlots.reduce((total, time) => total + (data[day]?.[time]?.[type] || 0), 0);
   };
 
-  // 🔥 La comisión es el 7% del total de ventas
+  // 🔥 La comisión diaria es el 7% de las ventas diarias
+  const calculateDailyCommission = (day) => {
+    const ventasDiarias = calculateDailyTotals(day, "venta");
+    return (ventasDiarias * 0.07).toFixed(2);
+  };
+
+  // 🔥 Cálculo de totales generales
+  const calculateTotal = (type) => {
+    return days.reduce((total, day) => total + calculateDailyTotals(day, type), 0);
+  };
+
+  // 🔥 La comisión general es el 7% del total de ventas
   const calculateCommission = () => {
     return (calculateTotal("venta") * 0.07).toFixed(2);
   };
@@ -109,67 +118,83 @@ const GreivinPage = () => {
       <Heading size="lg" mb={4}>Greivin - Semana {weekId}</Heading>
 
       {/* 🔥 Tabla de Ventas y Premios */}
-        <Box overflowX="auto">
-            <Table variant="simple" size="sm">
-            <Thead>
+      <Box overflowX="auto">
+        <Table variant="simple" size="sm">
+          <Thead>
             <Tr>
-                <Th 
+              <Th 
                 w="250px" 
                 position="sticky" 
                 left={0} 
                 background="white" 
                 zIndex={1} 
-                >
+              >
                 Hora
-                </Th>
-                {days.map(day => (
+              </Th>
+              {days.map(day => (
                 <Th key={day} w="250px">{day.charAt(0).toUpperCase() + day.slice(1)}</Th>
-                ))}
+              ))}
             </Tr>
-            </Thead>
-            <Tbody>
+          </Thead>
+          <Tbody>
             {timeSlots.map(time => (
-                <Tr key={time}>
+              <Tr key={time}>
                 <Td 
-                    position="sticky" 
-                    left={0} 
-                    background="white" 
-                    fontWeight="bold" 
-                    w="240px"
-                    p="1" 
-                    zIndex={1}
+                  position="sticky" 
+                  left={0} 
+                  background="white" 
+                  fontWeight="bold" 
+                  w="240px"
+                  p="1" 
+                  zIndex={1}
                 >
-                    {time}
+                  {time}
                 </Td>
                 {days.map(day => (
-                    <Td key={day}>
+                  <Td key={day}>
                     <Box>
-                        <Text fontSize="sm">Venta:</Text>
-                        <Input
+                      <Text fontSize="sm">Venta:</Text>
+                      <Input
                         type="number"
                         size="sm"
                         value={data[day]?.[time]?.venta || ''}
                         onChange={(e) => handleInputChange(day, time, 'venta', e.target.value)}
                         w="100px"
-                        />
+                      />
                     </Box>
                     <Box mt={1}>
-                        <Text fontSize="sm">Premio:</Text>
-                        <Input
+                      <Text fontSize="sm">Premio:</Text>
+                      <Input
                         type="number"
                         size="sm"
                         value={data[day]?.[time]?.premio || ''}
                         onChange={(e) => handleInputChange(day, time, 'premio', e.target.value)}
                         w="100px"
-                        />
+                      />
                     </Box>
-                    </Td>
+                  </Td>
                 ))}
-                </Tr>
+              </Tr>
             ))}
-            </Tbody>
-            </Table>
-        </Box>
+
+            {/* 🔥 Totales por Día */}
+            <Tr bg="gray.100">
+              <Td fontWeight="bold" position="sticky" left={0} background="white" zIndex={1}>
+                Totales
+              </Td>
+              {days.map(day => (
+                <Td key={day}>
+                  <Box>
+                    <Text fontSize="sm">Venta: ¢{calculateDailyTotals(day, "venta")}</Text>
+                    <Text fontSize="sm">Premio: ¢{calculateDailyTotals(day, "premio")}</Text>
+                    <Text fontSize="sm">Comisión: ¢{calculateDailyCommission(day)}</Text>
+                  </Box>
+                </Td>
+              ))}
+            </Tr>
+          </Tbody>
+        </Table>
+      </Box>
 
       {/* 🔥 Cálculos de Totales */}
       <Box mt={4} p={4} bg="gray.50" borderRadius="md">
