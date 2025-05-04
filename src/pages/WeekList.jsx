@@ -1,45 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container, Heading, Button, Box, Menu, MenuButton, MenuList, MenuItem, IconButton, Flex, Text,
-  Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, useDisclosure
+  Container, Heading, Button, Box, Menu, MenuButton, MenuList, MenuItem, IconButton, 
+  Flex, Text, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, 
+  ModalBody, ModalCloseButton, useDisclosure, Input, FormControl, FormLabel
 } from '@chakra-ui/react';
 import { ChevronDownIcon, DeleteIcon } from '@chakra-ui/icons';
 import { collection, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Link } from 'react-router-dom';
 
-// 🔥 Función para calcular el rango de la próxima semana
-const getNextWeekRange = (lastWeekRange) => {
-  let startDate, endDate;
-
-  if (lastWeekRange) {
-    const lastSunday = new Date(lastWeekRange.split(' - ')[1]);
-
-    startDate = new Date(lastSunday);
-    startDate.setDate(lastSunday.getDate() + 1); // Siguiente lunes
-    endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6); // Siguiente domingo
-  } else {
-    const today = new Date();
-    startDate = new Date(today);
-    startDate.setDate(today.getDate() - today.getDay() + 1); // Primer lunes
-    endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6); // Siguiente domingo
-  }
-
-  const formatDate = (date) => {
-    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-  };
-
-  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
-};
-
 const WeekList = () => {
   const [weeks, setWeeks] = useState([]);
   const [weekToDelete, setWeekToDelete] = useState(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [newWeekName, setNewWeekName] = useState('');
+  const { 
+    isOpen: isDeleteModalOpen, 
+    onOpen: onDeleteModalOpen, 
+    onClose: onDeleteModalClose 
+  } = useDisclosure();
+  
+  const { 
+    isOpen: isAddModalOpen, 
+    onOpen: onAddModalOpen, 
+    onClose: onAddModalClose 
+  } = useDisclosure();
 
-  // 🔥 Cargar semanas desde Firestore
+  // Cargar semanas desde Firestore
   useEffect(() => {
     const fetchWeeks = async () => {
       const querySnapshot = await getDocs(collection(db, "weeks"));
@@ -48,32 +34,36 @@ const WeekList = () => {
         ...doc.data()
       }));
 
-      weeksData.sort((a, b) => new Date(b.range.split(' - ')[0]) - new Date(a.range.split(' - ')[0]));
-
+      // Ordenar por fecha de creación (más reciente primero)
+      weeksData.sort((a, b) => b.createdAt - a.createdAt);
       setWeeks(weeksData);
     };
     fetchWeeks();
   }, []);
 
-  // 🔥 Agregar una nueva semana a Firestore y colocarla en la parte superior
+  // Agregar una nueva semana manualmente
   const handleAddWeek = async () => {
-    const lastWeekRange = weeks.length > 0 ? weeks[0].range : null;
-    const newWeekRange = getNextWeekRange(lastWeekRange);
+    if (!newWeekName.trim()) {
+      alert("Por favor ingrese un nombre para la semana");
+      return;
+    }
 
     const newWeek = {
-      range: newWeekRange,
-      createdAt: new Date()
+      name: newWeekName,
+      createdAt: new Date().getTime() // Usamos timestamp para ordenar
     };
 
     try {
       const docRef = await addDoc(collection(db, "weeks"), newWeek);
-      setWeeks(prevWeeks => [{ id: docRef.id, ...newWeek }, ...prevWeeks]); // Agregar arriba
+      setWeeks(prevWeeks => [{ id: docRef.id, ...newWeek }, ...prevWeeks]);
+      setNewWeekName('');
+      onAddModalClose();
     } catch (error) {
       console.error("Error al agregar la semana: ", error);
     }
   };
 
-  // 🔥 Eliminar una semana con confirmación en modal
+  // Eliminar una semana con confirmación
   const confirmDeleteWeek = async () => {
     if (!weekToDelete) return;
     try {
@@ -83,43 +73,47 @@ const WeekList = () => {
       console.error("Error al eliminar la semana: ", error);
     }
     setWeekToDelete(null);
-    onClose();
+    onDeleteModalClose();
   };
 
   return (
     <Container maxW="container.md" p={4}>
       <Heading mb={4}>Lista de Semanas</Heading>
-      <Button colorScheme="teal" mb={4} onClick={handleAddWeek}>
-        Agregar Semana
+      <Button colorScheme="teal" mb={4} onClick={onAddModalOpen}>
+        Agregar Semana Manualmente
       </Button>
 
-      {/* 🔥 Lista de Semanas con Dropdowns */}
+      {/* Lista de Semanas */}
       {weeks.length > 0 ? (
         weeks.map((week) => (
           <Box key={week.id} mb={4} p={3} borderRadius="md" bg="gray.100">
             <Flex align="center" justify="space-between">
               <Menu>
-                <MenuButton as={Button} rightIcon={<ChevronDownIcon />} colorScheme="blue" width="80%">
-                  {week.range}
+                <MenuButton 
+                  as={Button} 
+                  rightIcon={<ChevronDownIcon />} 
+                  colorScheme="blue" 
+                  width="80%"
+                >
+                  {week.name || `Semana ${week.id}`}
                 </MenuButton>
                 <MenuList>
                   <Link to={`/salestracker/${week.id}/greivin`}>
                     <MenuItem>Greivin</MenuItem>
                   </Link>
-                  <Link to={`/salestracker/${week.id}/oscar`}>
+                  {/* <Link to={`/salestracker/${week.id}/oscar`}>
                     <MenuItem>Oscar</MenuItem>
-                  </Link>
+                  </Link> */}
                 </MenuList>
               </Menu>
 
-              {/* 🔥 Ícono de basurero con confirmación modal */}
               <IconButton
                 icon={<DeleteIcon />}
                 aria-label="Eliminar semana"
                 colorScheme="red"
                 onClick={() => {
                   setWeekToDelete(week.id);
-                  onOpen();
+                  onDeleteModalOpen();
                 }}
               />
             </Flex>
@@ -129,8 +123,35 @@ const WeekList = () => {
         <Text>No hay semanas disponibles.</Text>
       )}
 
-      {/* 🔥 Modal de Confirmación para Eliminar Semana */}
-      <Modal isOpen={isOpen} onClose={onClose}>
+      {/* Modal para agregar semana manualmente */}
+      <Modal isOpen={isAddModalOpen} onClose={onAddModalClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Agregar Nueva Semana</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Nombre de la semana</FormLabel>
+              <Input
+                placeholder="Ej: Semana 1, Julio 2023, etc."
+                value={newWeekName}
+                onChange={(e) => setNewWeekName(e.target.value)}
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" mr={3} onClick={handleAddWeek}>
+              Guardar
+            </Button>
+            <Button variant="ghost" onClick={onAddModalClose}>
+              Cancelar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal de Confirmación para Eliminar Semana */}
+      <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Eliminar Semana</ModalHeader>
@@ -142,7 +163,7 @@ const WeekList = () => {
             <Button colorScheme="red" mr={3} onClick={confirmDeleteWeek}>
               Eliminar
             </Button>
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onDeleteModalClose}>
               Cancelar
             </Button>
           </ModalFooter>

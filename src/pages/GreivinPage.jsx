@@ -16,18 +16,29 @@ const GreivinPage = () => {
   const [data, setData] = useState({
     lunes: {}, martes: {}, miercoles: {}, jueves: {}, viernes: {}, sabado: {}, domingo: {}
   });
-  const [additionalAmount, setAdditionalAmount] = useState(""); // Gasto o retiro
-  const [movements, setMovements] = useState([]); // Historial de movimientos
+  const [additionalAmount, setAdditionalAmount] = useState("");
+  const [movements, setMovements] = useState([]);
 
-  // 🔥 Franjas horarias y días
+  // Franjas horarias combinadas (Costa Rica + Honduras)
   const timeSlots = [
-    "10:00 a. m.", "11:00 a. m.", "1:00 p. m.", "3:00 p. m.",
-    "4:30 p. m.", "6:00 p. m. (Primera)", "6:00 p. m. (Nica)", 
-    "7:00 p. m.", "9:00 p. m."
+    // Lotería Costa Rica
+    "10:00 a. m. (Primera Dominicana)", 
+    "11:00 a. m. (Nica)",
+    "11:00 a. m. (Honduras)",
+    "1:00 p. m. (Tica)", 
+    "3:00 p. m. (Nica)",
+    "3:00 p. m. (Honduras)",
+    "4:30 p. m. (Tica)", 
+    "6:00 p. m. (Primera Dominicana)", 
+    "6:00 p. m. (Nica)", 
+    "7:00 p. m. (Tica)", 
+    "9:00 p. m. (Nica)",
+    "9:00 p. m. (Honduras)"   
   ];
+
   const days = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
 
-  // 🔥 Cargar datos desde Firestore
+  // Cargar datos desde Firestore
   useEffect(() => {
     const fetchData = async () => {
       const docRef = doc(db, `weeks/${weekId}/data`, "Greivin");
@@ -43,7 +54,7 @@ const GreivinPage = () => {
     fetchData();
   }, [weekId]);
 
-  // 🔥 Guardar cambios en Firestore cuando se edita un campo
+  // Guardar cambios en Firestore
   const handleInputChange = async (day, time, type, value) => {
     const newData = { ...data };
     if (!newData[day]) newData[day] = {};
@@ -54,7 +65,7 @@ const GreivinPage = () => {
     await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), newData, { merge: true });
   };
 
-  // 🔥 Agregar gasto/retiro y guardar en Firestore
+  // Agregar gasto/retiro
   const handleAdditionalAmount = async () => {
     if (!additionalAmount || isNaN(additionalAmount)) return;
 
@@ -69,34 +80,37 @@ const GreivinPage = () => {
     setMovements(updatedMovements);
     setAdditionalAmount("");
 
-    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { movements: updatedMovements }, { merge: true });
+    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { 
+      ...data,
+      movements: updatedMovements 
+    }, { merge: true });
   };
 
-  // 🔥 Eliminar un gasto/retiro del historial y Firestore
+  // Eliminar movimiento
   const handleDeleteMovement = async (id) => {
     const updatedMovements = movements.filter(movement => movement.id !== id);
     setMovements(updatedMovements);
 
-    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { movements: updatedMovements }, { merge: true });
+    await setDoc(doc(db, `weeks/${weekId}/data`, "Greivin"), { 
+      ...data,
+      movements: updatedMovements
+    }, { merge: true });
   };
 
-  // 🔥 Cálculo de totales por día
+  // Cálculos
   const calculateDailyTotals = (day, type) => {
     return timeSlots.reduce((total, time) => total + (data[day]?.[time]?.[type] || 0), 0);
   };
 
-  // 🔥 La comisión diaria es el 7% de las ventas diarias
   const calculateDailyCommission = (day) => {
     const ventasDiarias = calculateDailyTotals(day, "venta");
     return (ventasDiarias * 0.07).toFixed(2);
   };
 
-  // 🔥 Cálculo de totales generales
   const calculateTotal = (type) => {
     return days.reduce((total, day) => total + calculateDailyTotals(day, type), 0);
   };
 
-  // 🔥 La comisión general es el 7% del total de ventas
   const calculateCommission = () => {
     return (calculateTotal("venta") * 0.07).toFixed(2);
   };
@@ -107,7 +121,7 @@ const GreivinPage = () => {
     const comision = parseFloat(calculateCommission());
     const totalMovements = movements.reduce((total, movement) => total + movement.amount, 0);
   
-    return (ventas - (premios + comision) + totalMovements).toFixed(2); // 🔥 Se SUMA totalMovements en vez de restarlo
+    return (ventas - (premios + comision) + totalMovements).toFixed(2);
   };
 
   return (
@@ -117,7 +131,7 @@ const GreivinPage = () => {
       </Button>
       <Heading size="lg" mb={4}>Greivin - Semana {weekId}</Heading>
 
-      {/* 🔥 Tabla de Ventas y Premios */}
+      {/* Tabla de Ventas y Premios */}
       <Box overflowX="auto">
         <Table variant="simple" size="sm">
           <Thead>
@@ -177,7 +191,7 @@ const GreivinPage = () => {
               </Tr>
             ))}
 
-            {/* 🔥 Totales por Día */}
+            {/* Totales por Día */}
             <Tr bg="gray.100">
               <Td fontWeight="bold" position="sticky" left={0} background="white" zIndex={1}>
                 Totales
@@ -196,7 +210,7 @@ const GreivinPage = () => {
         </Table>
       </Box>
 
-      {/* 🔥 Cálculos de Totales */}
+      {/* Cálculos de Totales */}
       <Box mt={4} p={4} bg="gray.50" borderRadius="md">
         <Flex gap={4}>
           <Box>
@@ -213,14 +227,14 @@ const GreivinPage = () => {
           </Box>
         </Flex>
 
-        {/* 🔥 Ganancia */}
+        {/* Ganancia */}
         <Box mt={4}>
           <Text fontWeight="bold" fontSize="lg" color={calculateProfit() < 0 ? "red.500" : "green.500"}>
             Ganancia: ¢{calculateProfit()}
           </Text>
         </Box>
 
-        {/* 🔥 Sección de Gasto / Retiro con Historial */}
+        {/* Sección de Gasto / Retiro con Historial */}
         <Box mt={4}>
           <Text fontWeight="bold">Agregar adelanto:</Text>
           <HStack>

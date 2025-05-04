@@ -3,327 +3,417 @@ import {
   Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Input, Button, Container,
   Menu, MenuButton, MenuList, MenuItem, Text, Flex, VStack, HStack, IconButton,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton,
-  useDisclosure
+  useDisclosure, FormControl, FormLabel, Select
 } from '@chakra-ui/react';
-import { ChevronDownIcon, DeleteIcon } from '@chakra-ui/icons';
+import { ChevronDownIcon, DeleteIcon, AddIcon } from '@chakra-ui/icons';
 
 const SalesTracker = () => {
-  // Estado para almacenar las semanas disponibles
-  const [weeks, setWeeks] = useState([
-    { id: 1, range: getCurrentWeekRange(), activeTable: null },
-  ]);
+  // Estado para almacenar las semanas (solo con nombre manual)
+  const [weeks, setWeeks] = useState([]); // Inicialmente vacío
 
-  // Estados independientes para Greivin y Oscar
+  // Estados para los datos de los vendedores
   const [dataGreivin, setDataGreivin] = useState({
-    lunes: {},
-    martes: {},
-    miercoles: {},
-    jueves: {},
-    viernes: {},
-    sabado: {},
-    domingo: {},
+    lunes: {}, martes: {}, miercoles: {}, jueves: {}, viernes: {}, sabado: {}, domingo: {},
   });
 
   const [dataOscar, setDataOscar] = useState({
-    lunes: {},
-    martes: {},
-    miercoles: {},
-    jueves: {},
-    viernes: {},
-    sabado: {},
-    domingo: {},
+    lunes: {}, martes: {}, miercoles: {}, jueves: {}, viernes: {}, sabado: {}, domingo: {},
   });
 
-  // Estado para el monto adicional (gasto o retiro)
+  // Estados para los modales
+  const { isOpen: isWeekModalOpen, onOpen: onWeekModalOpen, onClose: onWeekModalClose } = useDisclosure();
+  const { isOpen: isDeleteModalOpen, onOpen: onDeleteModalOpen, onClose: onDeleteModalClose } = useDisclosure();
+
+  // Estado para la semana actual
+  const [currentWeek, setCurrentWeek] = useState({
+    id: null,
+    name: "",
+    activeTable: null,
+    activeCountry: null
+  });
+
+  // Estado para el formulario de nueva semana
+  const [newWeekData, setNewWeekData] = useState({ 
+    name: "" 
+  });
+
+  // Horarios de lotería
+  const [lotteryTimes, setLotteryTimes] = useState({
+    honduras: ["11:00 a.m.", "3:00 p.m.", "9:00 p.m."]
+  });
+
+  // Estados para movimientos financieros
   const [additionalAmount, setAdditionalAmount] = useState('');
-
-  // Estado para el registro de movimientos
   const [movements, setMovements] = useState([]);
-
-  // Estado para la semana seleccionada para eliminar
   const [weekToDelete, setWeekToDelete] = useState(null);
 
-  // Hook para controlar el modal de confirmación
-  const { isOpen, onOpen, onClose } = useDisclosure();
-
-  // Franjas horarias
-  const timeSlots = [
-    "10:00 a. m.",
-    "11:00 a. m.",
-    "1:00 p. m.",
-    "3:00 p. m.",
-    "4:30 p. m.",
-    "6:00 p. m.",
-    "7:00 p. m.",
-    "9:00 p. m.",
-  ];
-
-  // Días de la semana
+  // Constantes
   const days = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+  const countries = ['Costa Rica', 'Honduras'];
 
-  // Función para obtener el rango de la semana actual (lunes a domingo)
-  function getCurrentWeekRange() {
-    const today = new Date();
-    const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 1)); // Lunes
-    const lastDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 7)); // Domingo
-
-    const formatDate = (date) => {
-      return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-    };
-
-    return `${formatDate(firstDayOfWeek)} - ${formatDate(lastDayOfWeek)}`;
-  }
-
-  // Función para obtener el rango de la semana siguiente basado en la última semana agregada
-  function getNextWeekRange(lastWeekRange) {
-    const lastWeekEndDate = new Date(lastWeekRange.split(' - ')[1]); // Obtener la fecha de fin de la última semana
-    const nextMonday = new Date(lastWeekEndDate.setDate(lastWeekEndDate.getDate() + 1)); // Lunes de la próxima semana
-    const nextSunday = new Date(lastWeekEndDate.setDate(lastWeekEndDate.getDate() + 6)); // Domingo de la próxima semana
-
-    const formatDate = (date) => {
-      return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-    };
-
-    return `${formatDate(nextMonday)} - ${formatDate(nextSunday)}`;
-  }
-
-  // Función para agregar una nueva semana
-  const handleAddNextWeek = () => {
-    const lastWeekRange = weeks[0].range; // Obtener el rango de la última semana agregada
-    const nextWeekRange = getNextWeekRange(lastWeekRange); // Calcular la próxima semana
-    const newWeek = {
-      id: weeks.length + 1,
-      range: nextWeekRange,
-      activeTable: null,
-    };
-    setWeeks((prevWeeks) => [newWeek, ...prevWeeks]); // Agregar al principio del array
+  // Función para crear una nueva semana manualmente
+  const handleAddWeek = () => {
+    setNewWeekData({ name: "" });
+    setCurrentWeekId(null);
+    onWeekModalOpen();
   };
 
-  // Función para abrir el modal de confirmación de eliminación
+  // Función para guardar la semana manualmente
+  const saveWeekData = () => {
+    if (!newWeekData.name.trim()) {
+      alert("Por favor ingrese un nombre para la semana");
+      return;
+    }
+
+    const newWeek = {
+      id: weeks.length > 0 ? Math.max(...weeks.map(w => w.id)) + 1 : 1,
+      name: newWeekData.name,
+      activeTable: null,
+      activeCountry: null
+    };
+
+    setWeeks([...weeks, newWeek]);
+    onWeekModalClose();
+  };
+
+  // Función para seleccionar una semana existente
+  const selectWeek = (week) => {
+    setCurrentWeek(week);
+  };
+
+  // Función para editar una semana
+  const handleEditWeek = (week) => {
+    setNewWeekData({ name: week.name });
+    setCurrentWeekId(week.id);
+    onWeekModalOpen();
+  };
+
+  // Función para eliminar una semana
   const handleDeleteWeek = (weekId) => {
     setWeekToDelete(weekId);
-    onOpen();
+    onDeleteModalOpen();
   };
 
-  // Función para eliminar la semana
   const confirmDeleteWeek = () => {
-    setWeeks((prevWeeks) => prevWeeks.filter((week) => week.id !== weekToDelete));
-    onClose();
+    setWeeks(weeks.filter(week => week.id !== weekToDelete));
+    if (currentWeek.id === weekToDelete) {
+      setCurrentWeek({
+        id: null,
+        name: "",
+        activeTable: null,
+        activeCountry: null
+      });
+    }
+    onDeleteModalClose();
   };
 
-  // Función para actualizar ventas o premios
+  // Resto de funciones de negocio (sin cambios)
   const handleInputChange = (day, time, type, value, setData) => {
-    setData((prevData) => ({
-      ...prevData,
+    setData(prev => ({
+      ...prev,
       [day]: {
-        ...prevData[day],
+        ...prev[day],
         [time]: {
-          ...prevData[day][time],
+          ...prev[day][time],
           [type]: Number(value) || 0,
         },
       },
     }));
   };
 
-  // Función para calcular el total de ventas o premios por día
-  const calculateTotal = (data, day, type) => {
-    return timeSlots.reduce((total, time) => {
-      return total + (data[day][time]?.[type] || 0);
-    }, 0);
+  const handleAddManualTime = (day, week) => {
+    const newTime = prompt("Ingrese la hora (ej: 10:00 a. m.):");
+    if (newTime) {
+      const vendorId = `${week.activeTable}-${week.id}`;
+      setLotteryTimes(prev => ({
+        ...prev,
+        [vendorId]: {
+          ...prev[vendorId],
+          [day]: [...(prev[vendorId]?.[day] || []), newTime]
+        }
+      }));
+    }
   };
 
-  // Función para calcular la comisión (7% de las ventas)
-  const calculateCommission = (data, day) => {
-    const totalSales = calculateTotal(data, day, 'venta');
-    return (totalSales * 0.07).toFixed(2); // 7% de comisión
+  const calculateTotal = (data, day, type, week) => {
+    const times = week.activeCountry === 'Honduras' 
+      ? lotteryTimes.honduras 
+      : lotteryTimes[`${week.activeTable}-${week.id}`]?.[day] || [];
+    
+    return times.reduce((total, time) => total + (data[day][time]?.[type] || 0), 0);
   };
 
-  // Función para calcular el total general de ventas, premios y comisiones
-  const calculateGrandTotal = (data, type) => {
-    return days.reduce((total, day) => {
-      return total + (type === 'comision' ? parseFloat(calculateCommission(data, day)) : calculateTotal(data, day, type));
-    }, 0);
+  const calculateCommission = (data, day, week) => {
+    return (calculateTotal(data, day, 'venta', week) * 0.07).toFixed(2);
   };
 
-  // Función para calcular la ganancia
-  const calculateProfit = (data) => {
-    const totalVentas = calculateGrandTotal(data, 'venta');
-    const totalPremios = calculateGrandTotal(data, 'premio');
-    const totalComision = calculateGrandTotal(data, 'comision');
+  const calculateGrandTotal = (data, type, week) => {
+    return days.reduce((total, day) => total + (
+      type === 'comision' 
+        ? parseFloat(calculateCommission(data, day, week)) 
+        : calculateTotal(data, day, type, week)
+    ), 0);
+  };
+
+  const calculateProfit = (data, week) => {
+    const totalVentas = calculateGrandTotal(data, 'venta', week);
+    const totalPremios = calculateGrandTotal(data, 'premio', week);
+    const totalComision = calculateGrandTotal(data, 'comision', week);
     return (totalVentas - totalPremios - totalComision).toFixed(2);
   };
 
-  // Función para manejar el monto adicional (gasto o retiro)
   const handleAdditionalAmount = () => {
     if (!additionalAmount || isNaN(additionalAmount)) return;
 
-    const amount = parseFloat(additionalAmount);
     const newMovement = {
-      id: Date.now(), // Usamos el timestamp como ID único
-      amount: amount,
-      date: new Date().toLocaleString(), // Fecha y hora del movimiento
+      id: Date.now(),
+      amount: parseFloat(additionalAmount),
+      date: new Date().toLocaleString(),
     };
 
-    // Agregar el movimiento al registro
-    setMovements((prevMovements) => [newMovement, ...prevMovements]);
-
-    // Limpiar el campo de entrada
+    setMovements([newMovement, ...movements]);
     setAdditionalAmount('');
   };
 
-  // Función para calcular la ganancia final (ganancia - movimientos)
-  const calculateFinalProfit = (data) => {
-    const profit = parseFloat(calculateProfit(data));
-    const totalMovements = movements.reduce((total, movement) => total + movement.amount, 0);
+  const calculateFinalProfit = (data, week) => {
+    const profit = parseFloat(calculateProfit(data, week));
+    const totalMovements = movements.reduce((total, m) => total + m.amount, 0);
     return (profit - totalMovements).toFixed(2);
+  };
+
+  const getTimesForDay = (day, week) => {
+    return week.activeCountry === 'Honduras' 
+      ? lotteryTimes.honduras 
+      : lotteryTimes[`${week.activeTable}-${week.id}`]?.[day] || [];
   };
 
   return (
     <Container maxW="container.xl" p={4}>
       <Heading size="lg" mb={4} textAlign="center">Seguimiento de Ventas</Heading>
 
-      {/* 🔥 Botón para agregar la semana siguiente */}
-      <Button colorScheme="teal" mt={4} onClick={handleAddNextWeek}>
-        Agregar Semana Siguiente
-      </Button>
+      {/* Panel de selección de semana */}
+      <Box mb={6} p={4} borderWidth="1px" borderRadius="lg">
+        <Heading size="md" mb={4}>Semanas</Heading>
+        
+        <Flex gap={4} mb={4}>
+          <Button colorScheme="teal" onClick={handleAddWeek}>
+            Crear Nueva Semana
+          </Button>
+        </Flex>
 
-      {/* 🔥 Dropdowns por Semana */}
-      {weeks.map((week) => (
-        <Box key={week.id} mb={4}>
-          <Flex align="center" justify="space-between">
-            <Menu>
-              <MenuButton
-                as={Button}
-                rightIcon={<ChevronDownIcon />}
-                colorScheme="blue"
-                width="100%" // Ocupa el 100% del ancho
+        {weeks.length > 0 ? (
+          <VStack align="stretch">
+            {weeks.map(week => (
+              <Flex 
+                key={week.id} 
+                p={3} 
+                borderWidth="1px" 
+                borderRadius="md"
+                bg={currentWeek.id === week.id ? "blue.50" : "white"}
+                cursor="pointer"
+                onClick={() => selectWeek(week)}
+                justify="space-between"
+                align="center"
               >
-                {week.activeTable ? `Mostrando: ${week.activeTable}` : `Semana: ${week.range}`}
-              </MenuButton>
-              <MenuList width="100%"> {/* Ocupa el 100% del ancho */}
-                <MenuItem onClick={() => {
-                  const updatedWeeks = weeks.map((w) =>
-                    w.id === week.id ? { ...w, activeTable: "Oscar" } : w
-                  );
-                  setWeeks(updatedWeeks);
-                }}>
-                  Oscar
-                </MenuItem>
-                <MenuItem onClick={() => {
-                  const updatedWeeks = weeks.map((w) =>
-                    w.id === week.id ? { ...w, activeTable: "Greivin" } : w
-                  );
-                  setWeeks(updatedWeeks);
-                }}>
-                  Greivin
-                </MenuItem>
-              </MenuList>
-            </Menu>
+                <Text fontWeight="medium">{week.name}</Text>
+                <HStack>
+                  <IconButton
+                    icon={<DeleteIcon />}
+                    aria-label="Eliminar semana"
+                    size="sm"
+                    colorScheme="red"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteWeek(week.id);
+                    }}
+                  />
+                </HStack>
+              </Flex>
+            ))}
+          </VStack>
+        ) : (
+          <Text textAlign="center" color="gray.500">
+            No hay semanas creadas. Haz clic en "Crear Nueva Semana" para comenzar.
+          </Text>
+        )}
+      </Box>
 
-            {/* 🔥 Ícono de basurero para eliminar la semana */}
-            <IconButton
-              icon={<DeleteIcon />}
-              aria-label="Eliminar semana"
-              colorScheme="red"
-              ml={2}
-              onClick={() => handleDeleteWeek(week.id)}
-            />
+      {/* Contenido de la semana seleccionada */}
+      {currentWeek.id && (
+        <Box mb={4} p={4} borderWidth="1px" borderRadius="lg">
+          <Flex align="center" justify="space-between" mb={4}>
+            <Heading size="md">{currentWeek.name}</Heading>
+            <Button size="sm" onClick={() => handleEditWeek(currentWeek)}>
+              Editar Nombre
+            </Button>
           </Flex>
 
-          {/* 🔥 Tabla de Oscar o Greivin */}
-          {week.activeTable && (
+          {/* Selección de Vendedor y País */}
+          <Flex gap={4} mb={4}>
+            <Select 
+              placeholder="Seleccionar Vendedor" 
+              value={currentWeek.activeTable || ""}
+              onChange={(e) => setCurrentWeek({
+                ...currentWeek,
+                activeTable: e.target.value || null
+              })}
+            >
+              <option value="Oscar">Oscar</option>
+              <option value="Greivin">Greivin</option>
+            </Select>
+
+            <Select 
+              placeholder="Seleccionar País" 
+              value={currentWeek.activeCountry || ""}
+              onChange={(e) => setCurrentWeek({
+                ...currentWeek,
+                activeCountry: e.target.value || null
+              })}
+            >
+              {countries.map(country => (
+                <option key={country} value={country}>{country}</option>
+              ))}
+            </Select>
+          </Flex>
+
+          {/* Tabla de ventas */}
+          {currentWeek.activeTable && currentWeek.activeCountry && (
             <Box mt={4}>
-              <Heading size="md" mb={4}>{week.activeTable}</Heading>
+              <Heading size="md" mb={4}>
+                {currentWeek.activeTable} - {currentWeek.activeCountry}
+              </Heading>
+              
               <Box overflowX="auto">
-                <Table variant="simple" size="sm">
-                  <Thead>
-                    <Tr>
-                      <Th>Hora</Th>
-                      {days.map((day) => (
-                        <Th key={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</Th>
-                      ))}
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {timeSlots.map((time) => (
-                      <Tr key={time}>
-                        <Td padding="0">{time}</Td>
-                        {days.map((day) => (
-                          <Td key={day} px={2}> {/* Reducir el padding */}
-                            <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
-                              <Text fontSize="sm">Venta:</Text>
+                {days.map((day) => (
+                  <Box key={day} mb={6}>
+                    <Flex justify="space-between" align="center" mb={2}>
+                      <Heading size="sm" textTransform="capitalize">{day}</Heading>
+                      {currentWeek.activeCountry === 'Costa Rica' && (
+                        <Button 
+                          size="sm" 
+                          leftIcon={<AddIcon />} 
+                          onClick={() => handleAddManualTime(day, currentWeek)}
+                        >
+                          Agregar Hora
+                        </Button>
+                      )}
+                    </Flex>
+                    
+                    <Table variant="simple" size="sm" mb={4}>
+                      <Thead>
+                        <Tr>
+                          <Th>Hora</Th>
+                          <Th>Venta</Th>
+                          <Th>Premio</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {getTimesForDay(day, currentWeek).map((time) => (
+                          <Tr key={time}>
+                            <Td>{time}</Td>
+                            <Td>
                               <Input
                                 type="number"
                                 size="sm"
-                                value={week.activeTable === 'Oscar' ? dataOscar[day][time]?.venta : dataGreivin[day][time]?.venta || ''}
-                                onChange={(e) => handleInputChange(day, time, 'venta', e.target.value, week.activeTable === 'Oscar' ? setDataOscar : setDataGreivin)}
-                                width="70px"
+                                value={currentWeek.activeTable === 'Oscar' 
+                                  ? dataOscar[day][time]?.venta || '' 
+                                  : dataGreivin[day][time]?.venta || ''}
+                                onChange={(e) => handleInputChange(
+                                  day, 
+                                  time, 
+                                  'venta', 
+                                  e.target.value, 
+                                  currentWeek.activeTable === 'Oscar' ? setDataOscar : setDataGreivin
+                                )}
+                                width="100px"
                               />
-                            </Box>
-                            <Box display="flex" alignItems="center" gap={2} mt={1}>
-                              <Text fontSize="sm">Premio:</Text>
+                            </Td>
+                            <Td>
                               <Input
                                 type="number"
                                 size="sm"
-                                value={week.activeTable === 'Oscar' ? dataOscar[day][time]?.premio : dataGreivin[day][time]?.premio || ''}
-                                onChange={(e) => handleInputChange(day, time, 'premio', e.target.value, week.activeTable === 'Oscar' ? setDataOscar : setDataGreivin)}
-                                width="70px"
+                                value={currentWeek.activeTable === 'Oscar' 
+                                  ? dataOscar[day][time]?.premio || '' 
+                                  : dataGreivin[day][time]?.premio || ''}
+                                onChange={(e) => handleInputChange(
+                                  day, 
+                                  time, 
+                                  'premio', 
+                                  e.target.value, 
+                                  currentWeek.activeTable === 'Oscar' ? setDataOscar : setDataGreivin
+                                )}
+                                width="100px"
                               />
-                            </Box>
-                          </Td>
+                            </Td>
+                          </Tr>
                         ))}
-                      </Tr>
-                    ))}
+                      </Tbody>
+                    </Table>
 
-                    {/* Totales */}
-                    <Tr bg="gray.100">
-                      <Td fontWeight="bold">Total</Td>
-                      {days.map((day) => (
-                        <Td key={day} px={2}> {/* Reducir el padding */}
-                          <Box>Venta: {calculateTotal(week.activeTable === 'Oscar' ? dataOscar : dataGreivin, day, 'venta')}</Box>
-                          <Box>Premio: {calculateTotal(week.activeTable === 'Oscar' ? dataOscar : dataGreivin, day, 'premio')}</Box>
-                        </Td>
-                      ))}
-                    </Tr>
-
-                    {/* Comisión */}
-                    <Tr bg="gray.200">
-                      <Td fontWeight="bold">Comisión</Td>
-                      {days.map((day) => (
-                        <Td key={day} px={2}> {/* Reducir el padding */}
-                          ¢{calculateCommission(week.activeTable === 'Oscar' ? dataOscar : dataGreivin, day)}
-                        </Td>
-                      ))}
-                    </Tr>
-                  </Tbody>
-                </Table>
+                    <Box bg="gray.100" p={2} borderRadius="md">
+                      <Text fontWeight="bold">Totales del día:</Text>
+                      <Flex justify="space-between">
+                        <Text>Ventas: ¢{calculateTotal(
+                          currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                          day, 
+                          'venta', 
+                          currentWeek
+                        )}</Text>
+                        <Text>Premios: ¢{calculateTotal(
+                          currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                          day, 
+                          'premio', 
+                          currentWeek
+                        )}</Text>
+                        <Text>Comisión: ¢{calculateCommission(
+                          currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                          day, 
+                          currentWeek
+                        )}</Text>
+                      </Flex>
+                    </Box>
+                  </Box>
+                ))}
               </Box>
 
-              {/* 🔥 Total General y Ganancia */}
+              {/* Totales generales */}
               <Box mt={4} p={4} bg="gray.50" borderRadius="md">
                 <Heading size="md" mb={2}>Total General</Heading>
-                <Flex gap={4}>
+                <Flex gap={4} flexWrap="wrap">
                   <Box>
                     <Text fontWeight="bold">Total Ventas:</Text>
-                    <Text>¢{calculateGrandTotal(week.activeTable === 'Oscar' ? dataOscar : dataGreivin, 'venta')}</Text>
+                    <Text>¢{calculateGrandTotal(
+                      currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                      'venta', 
+                      currentWeek
+                    )}</Text>
                   </Box>
                   <Box>
                     <Text fontWeight="bold">Total Premios:</Text>
-                    <Text>¢{calculateGrandTotal(week.activeTable === 'Oscar' ? dataOscar : dataGreivin, 'premio')}</Text>
+                    <Text>¢{calculateGrandTotal(
+                      currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                      'premio', 
+                      currentWeek
+                    )}</Text>
                   </Box>
                   <Box>
                     <Text fontWeight="bold">Total Comisión:</Text>
-                    <Text>¢{calculateGrandTotal(week.activeTable === 'Oscar' ? dataOscar : dataGreivin, 'comision')}</Text>
+                    <Text>¢{calculateGrandTotal(
+                      currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                      'comision', 
+                      currentWeek
+                    )}</Text>
                   </Box>
                 </Flex>
 
-                {/* 🔥 Ganancia */}
                 <Box mt={4}>
                   <Text fontWeight="bold">Ganancia:</Text>
-                  <Text>¢{calculateProfit(week.activeTable === 'Oscar' ? dataOscar : dataGreivin)}</Text>
+                  <Text>¢{calculateProfit(
+                    currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                    currentWeek
+                  )}</Text>
                 </Box>
 
-                {/* 🔥 Monto Adicional (Gasto o Retiro) */}
                 <Box mt={4}>
                   <Text fontWeight="bold">Agregar Gasto/Retiro:</Text>
                   <HStack>
@@ -340,13 +430,14 @@ const SalesTracker = () => {
                   </HStack>
                 </Box>
 
-                {/* 🔥 Ganancia Final */}
                 <Box mt={4}>
                   <Text fontWeight="bold">Ganancia Final:</Text>
-                  <Text>¢{calculateFinalProfit(week.activeTable === 'Oscar' ? dataOscar : dataGreivin)}</Text>
+                  <Text>¢{calculateFinalProfit(
+                    currentWeek.activeTable === 'Oscar' ? dataOscar : dataGreivin, 
+                    currentWeek
+                  )}</Text>
                 </Box>
 
-                {/* 🔥 Registro de Movimientos */}
                 <Box mt={4} mb={10}>
                   <Text fontWeight="bold">Registro de Movimientos:</Text>
                   <VStack align="start" spacing={2} mt={2}>
@@ -363,22 +454,49 @@ const SalesTracker = () => {
             </Box>
           )}
         </Box>
-      ))}
+      )}
 
-      {/* 🔥 Modal de Confirmación para Eliminar Semana */}
-      <Modal isOpen={isOpen} onClose={onClose}>
+      {/* Modal para crear/editar semana */}
+      <Modal isOpen={isWeekModalOpen} onClose={onWeekModalClose}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Eliminar Semana</ModalHeader>
+          <ModalHeader>{currentWeek.id ? "Editar Semana" : "Crear Nueva Semana"}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Text>¿Estás seguro de que deseas eliminar esta semana?</Text>
+            <FormControl>
+              <FormLabel>Nombre de la semana</FormLabel>
+              <Input 
+                placeholder="Ej: Semana 1, Enero 2023, etc."
+                value={newWeekData.name}
+                onChange={(e) => setNewWeekData({name: e.target.value})}
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" mr={3} onClick={saveWeekData}>
+              {currentWeek.id ? "Guardar Cambios" : "Crear Semana"}
+            </Button>
+            <Button variant="ghost" onClick={onWeekModalClose}>
+              Cancelar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal de confirmación para eliminar semana */}
+      <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Confirmar Eliminación</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>¿Estás seguro de que deseas eliminar esta semana? Esta acción no se puede deshacer.</Text>
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="red" mr={3} onClick={confirmDeleteWeek}>
               Eliminar
             </Button>
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onDeleteModalClose}>
               Cancelar
             </Button>
           </ModalFooter>
